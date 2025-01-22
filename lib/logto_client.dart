@@ -82,36 +82,29 @@ class LogtoClient {
       return _oidcConfig!;
     }
 
-    final discoveryUri =
-        utils.appendUriPath(config.endpoint, logto_core.discoveryPath);
+    final discoveryUri = utils.appendUriPath(config.endpoint, logto_core.discoveryPath);
     _oidcConfig = await logto_core.fetchOidcConfig(httpClient, discoveryUri);
 
     return _oidcConfig!;
   }
 
   // Get the access token by resource indicator or organizationId.
-  Future<AccessToken?> getAccessToken(
-      {String? resource, String? organizationId}) async {
-    final accessToken = await _tokenStorage.getAccessToken(
-        resource: resource, organizationId: organizationId);
+  Future<AccessToken?> getAccessToken({String? resource, String? organizationId}) async {
+    final accessToken = await _tokenStorage.getAccessToken(resource: resource, organizationId: organizationId);
 
-    if (accessToken != null) {
+    if (accessToken != null && accessToken.expiresAt.isAfter(DateTime.now())) {
       return accessToken;
     }
 
-    final token = await _getAccessTokenByRefreshToken(
-        resource: resource, organizationId: organizationId);
+    final token = await _getAccessTokenByRefreshToken(resource: resource, organizationId: organizationId);
 
     return token;
   }
 
   // Get the access token for the organization by organizationId.
   Future<AccessToken?> getOrganizationToken(String organizationId) async {
-    if (config.scopes == null ||
-        !config.scopes!
-            .contains(logto_core.LogtoUserScope.organizations.value)) {
-      throw LogtoAuthException(LogtoAuthExceptions.missingScopeError,
-          'organizations scope is not specified');
+    if (config.scopes == null || !config.scopes!.contains(logto_core.LogtoUserScope.organizations.value)) {
+      throw LogtoAuthException(LogtoAuthExceptions.missingScopeError, 'organizations scope is not specified');
     }
 
     return await getAccessToken(organizationId: organizationId);
@@ -119,13 +112,11 @@ class LogtoClient {
 
   // Fetch the access token by refresh token.
   // No need to specify the scopes for the resource, all the related scopes in the refresh token's grant list will be returned.
-  Future<AccessToken?> _getAccessTokenByRefreshToken(
-      {String? resource, String? organizationId}) async {
+  Future<AccessToken?> _getAccessTokenByRefreshToken({String? resource, String? organizationId}) async {
     final refreshToken = await _tokenStorage.refreshToken;
 
     if (refreshToken == null) {
-      throw LogtoAuthException(
-          LogtoAuthExceptions.authenticationError, 'not_authenticated');
+      throw LogtoAuthException(LogtoAuthExceptions.authenticationError, 'not_authenticated');
     }
 
     final httpClient = _httpClient ?? http.Client();
@@ -144,10 +135,7 @@ class LogtoClient {
       final scopes = response.scope.split(' ');
 
       await _tokenStorage.setAccessToken(response.accessToken,
-          expiresIn: response.expiresIn,
-          resource: resource,
-          organizationId: organizationId,
-          scopes: scopes);
+          expiresIn: response.expiresIn, resource: resource, organizationId: organizationId, scopes: scopes);
 
       // renew refresh token
       if (response.refreshToken != null) {
@@ -161,29 +149,23 @@ class LogtoClient {
         await _tokenStorage.setIdToken(idToken);
       }
 
-      return await _tokenStorage.getAccessToken(
-          resource: resource, organizationId: organizationId);
+      return await _tokenStorage.getAccessToken(resource: resource, organizationId: organizationId);
     } finally {
       if (_httpClient == null) httpClient.close();
     }
   }
 
-  Future<void> _verifyIdToken(
-      IdToken idToken, OidcProviderConfig oidcConfig) async {
-    final keyStore = JsonWebKeyStore()
-      ..addKeySetUrl(Uri.parse(oidcConfig.jwksUri));
+  Future<void> _verifyIdToken(IdToken idToken, OidcProviderConfig oidcConfig) async {
+    final keyStore = JsonWebKeyStore()..addKeySetUrl(Uri.parse(oidcConfig.jwksUri));
 
     if (!await idToken.verify(keyStore)) {
-      throw LogtoAuthException(
-          LogtoAuthExceptions.idTokenValidationError, 'invalid jws signature');
+      throw LogtoAuthException(LogtoAuthExceptions.idTokenValidationError, 'invalid jws signature');
     }
 
-    final violations = idToken.claims
-        .validate(issuer: Uri.parse(oidcConfig.issuer), clientId: config.appId);
+    final violations = idToken.claims.validate(issuer: Uri.parse(oidcConfig.issuer), clientId: config.appId);
 
     if (violations.isNotEmpty) {
-      throw LogtoAuthException(
-          LogtoAuthExceptions.idTokenValidationError, '$violations');
+      throw LogtoAuthException(LogtoAuthExceptions.idTokenValidationError, '$violations');
     }
   }
 
@@ -198,8 +180,7 @@ class LogtoClient {
     Map<String, String>? extraParams,
   }) async {
     if (_loading) {
-      throw LogtoAuthException(
-          LogtoAuthExceptions.isLoadingError, 'Already signing in...');
+      throw LogtoAuthException(LogtoAuthExceptions.isLoadingError, 'Already signing in...');
     }
 
     final httpClient = _httpClient ?? http.Client();
@@ -243,8 +224,7 @@ class LogtoClient {
   }
 
   // Handle the sign-in callback and complete the token exchange process.
-  Future _handleSignInCallback(
-      String callbackUri, String redirectUri, http.Client httpClient) async {
+  Future _handleSignInCallback(String callbackUri, String redirectUri, http.Client httpClient) async {
     final code = logto_core.verifyAndParseCodeFromCallbackUri(
       callbackUri,
       redirectUri,
@@ -282,8 +262,7 @@ class LogtoClient {
     final httpClient = _httpClient ?? http.Client();
 
     if (idToken == null) {
-      throw LogtoAuthException(
-          LogtoAuthExceptions.authenticationError, 'not authenticated');
+      throw LogtoAuthException(LogtoAuthExceptions.authenticationError, 'not authenticated');
     }
 
     try {
@@ -323,8 +302,7 @@ class LogtoClient {
       final accessToken = await getAccessToken();
 
       if (accessToken == null) {
-        throw LogtoAuthException(
-            LogtoAuthExceptions.authenticationError, 'not authenticated');
+        throw LogtoAuthException(LogtoAuthExceptions.authenticationError, 'not authenticated');
       }
 
       final userInfoResponse = await logto_core.fetchUserInfo(
